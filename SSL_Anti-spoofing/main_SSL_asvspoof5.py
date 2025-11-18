@@ -71,7 +71,7 @@ def evaluate_accuracy(dev_loader, model, device):
 
 
 def produce_evaluation_file(dataset, model, device, save_path):
-    data_loader = DataLoader(dataset, batch_size=14, shuffle=False, drop_last=False,num_workers=0)
+    data_loader = DataLoader(dataset, batch_size=32, shuffle=False, drop_last=False,num_workers=8)
     num_correct = 0.0
     num_total = 0.0
     model.eval()

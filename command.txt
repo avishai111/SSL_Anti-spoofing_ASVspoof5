@@ -1,0 +1,1 @@
+runai-bgu submit python -n runinferwav2vec -c 16 -m 32G  --gpu-memory 40G --large-shm --conda SSL_Spoofing  -- "python /gpfs0/bgu-benshimo/users/wavishay/cm_analysis/SSL_Anti-spoofing/main_SSL_asvspoof5.py"
