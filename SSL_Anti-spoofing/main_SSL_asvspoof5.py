@@ -54,51 +54,47 @@ def evaluate_accuracy(dev_loader, model, device):
     model.eval()
     weight = torch.FloatTensor([0.1, 0.9]).to(device)
     criterion = nn.CrossEntropyLoss(weight=weight)
-    for batch_x, batch_y in dev_loader:
-        
-        batch_size = batch_x.size(0)
-        num_total += batch_size
-        batch_x = batch_x.to(device)
-        batch_y = batch_y.view(-1).type(torch.int64).to(device)
-        batch_out = model(batch_x)
-        
-        batch_loss = criterion(batch_out, batch_y)
-        val_loss += (batch_loss.item() * batch_size)
-        
+    with torch.no_grad():
+        for batch_x, batch_y in dev_loader:
+            
+            batch_size = batch_x.size(0)
+            num_total += batch_size
+            batch_x = batch_x.to(device)
+            batch_y = batch_y.view(-1).type(torch.int64).to(device)
+            batch_out = model(batch_x)
+            
+            batch_loss = criterion(batch_out, batch_y)
+            val_loss += (batch_loss.item() * batch_size)
+            
     val_loss /= num_total
    
     return val_loss
 
 
 def produce_evaluation_file(dataset, model, device, save_path):
-    data_loader = DataLoader(dataset, batch_size=32, shuffle=False, drop_last=False,num_workers=8)
-    num_correct = 0.0
-    num_total = 0.0
+    # אפשר לשנות את batch_size ו-num_workers לפי הזיכרון שלך
+    data_loader = DataLoader(
+        dataset,
+        batch_size=64,
+        shuffle=False,
+        drop_last=False,
+        num_workers=4,
+    )
+
     model.eval()
-    
-    fname_list = []
-    key_list = []
-    score_list = []
-    
-    for batch_x,utt_id in tqdm(data_loader, total=len(data_loader)):
-        fname_list = []
-        score_list = []  
-        batch_size = batch_x.size(0)
-        batch_x = batch_x.to(device)
-        
-        batch_out = model(batch_x)
-        
-        batch_score = (batch_out[:, 1]  
-                       ).data.cpu().numpy().ravel() 
-        # add outputs
-        fname_list.extend(utt_id)
-        score_list.extend(batch_score.tolist())
-        
-        with open(save_path, 'a+') as fh:
-            for f, cm in zip(fname_list,score_list):
-                fh.write('{} {}\n'.format(f, cm))
-        fh.close()   
-    print('Scores saved to {}'.format(save_path))
+
+    with torch.no_grad(), open(save_path, 'w') as fh:
+        for batch_x, utt_id in tqdm(data_loader, total=len(data_loader)):
+            batch_x = batch_x.to(device, non_blocking=True)
+
+            batch_out = model(batch_x)
+            batch_score = batch_out[:, 1].detach().cpu().numpy().ravel()
+
+            for f, cm in zip(utt_id, batch_score):
+                fh.write(f"{f} {cm}\n")
+
+    print(f"Scores saved to {save_path}")
+
 
 def train_epoch(train_loader, model, lr,optim, device):
     running_loss = 0
@@ -151,10 +147,11 @@ class Dataset_ASVspoof05_eval(Dataset):
             
             utt_id = self.list_IDs[index]
             X, fs = librosa.load(self.base_dir+'/'+utt_id+'.flac', sr=16000)
-            if self.normalize == True:
-                x = x / x.abs().max()
-            X_pad = pad(X,self.cut)
-            x_inp = Tensor(X_pad)
+            if self.normalize:
+                peak = np.max(np.abs(x))
+                x = x / peak
+            x = pad(x, self.cut)
+            x_inp = torch.from_numpy(x).float() 
             return x_inp,utt_id  
 
 
@@ -265,7 +262,7 @@ def run_asvspoof2021_baseline(
 
     model = Model(args, device)
     nb_params = sum([param.view(-1).size()[0] for param in model.parameters()])
-    model = nn.DataParallel(model).to(device)
+    #model = nn.DataParallel(model).to(device)
     print('nb_params:', nb_params)
 
     optimizer = torch.optim.Adam(
