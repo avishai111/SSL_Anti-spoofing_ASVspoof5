@@ -249,10 +249,10 @@ def produce_evaluation_file(dataset, model, device, save_path, normalize):
     # אפשר לשנות את batch_size ו-num_workers לפי הזיכרון שלך
     data_loader = DataLoader(
         dataset,
-        batch_size=1,
+        batch_size=32,
         shuffle=False,
         drop_last=False,
-        num_workers=0,
+        num_workers=4,
     )
 
     model.eval()
