@@ -43,7 +43,7 @@ def genSpoof_list(dir_meta,is_train=False,is_eval=False):
         return file_list
     else:
         for line in l_meta:
-            speaker,key,gender,_,_,_,_,attack,label,_ = line.strip().split()
+             speaker,key,gender,_,_,_,_,attack,label,_ = line.strip().split()
              file_list.append(key)
              d_meta[key] = 1 if label == 'bonafide' else 0
         return d_meta,file_list
@@ -150,7 +150,7 @@ class Dataset_ASVspoof05_eval(Dataset):
 	def __getitem__(self, index):
             
             utt_id = self.list_IDs[index]
-            X, fs = librosa.load(self.base_dir+'flac/'+utt_id+'.flac', sr=16000)
+            X, fs = librosa.load(self.base_dir+'/'+utt_id+'.flac', sr=16000)
             if self.normalize == True:
                 x = x / x.abs().max()
             X_pad = pad(X,self.cut)
@@ -194,6 +194,13 @@ def run_asvspoof2021_baseline(
     SNRmin=10,
     SNRmax=40,
 ):
+    normalize = False
+
+    if normalize == True:
+        eval_output = '/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/train_asvspoof5_normalize.txt'
+    else:
+        eval_output = '/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/train_asvspoof5_no_normalize.txt'
+        
     args = SimpleNamespace(
         database_path=database_path,
         protocols_path=protocols_path,
@@ -233,7 +240,6 @@ def run_asvspoof2021_baseline(
 
     ASVspoof_path_name = 'ASVspoof5.train.tsv'
     folder_files = 'flac_T' 
-    normalize = False
     if not os.path.exists('models'):
         os.mkdir('models')
 
