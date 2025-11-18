@@ -7,7 +7,7 @@ from torch import nn
 from torch import Tensor
 from torch.utils.data import DataLoader
 import yaml
-from data_utils_SSL import Dataset_ASVspoof2019_train,Dataset_ASVspoof2021_eval
+from data_utils_SSL import Dataset_ASVspoof2019_train,Dataset_ASVspoof2021_eval, pad
 from model import Model
 from core_scripts.startup_config import set_random_seed
 import os
@@ -200,7 +200,7 @@ def run_asvspoof2021_baseline(
         eval_output = '/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/train_asvspoof5_normalize.txt'
     else:
         eval_output = '/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/train_asvspoof5_no_normalize.txt'
-        
+
     args = SimpleNamespace(
         database_path=database_path,
         protocols_path=protocols_path,
