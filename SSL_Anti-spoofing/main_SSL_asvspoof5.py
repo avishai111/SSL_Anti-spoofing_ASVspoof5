@@ -75,7 +75,7 @@ def produce_evaluation_file(dataset, model, device, save_path):
     # אפשר לשנות את batch_size ו-num_workers לפי הזיכרון שלך
     data_loader = DataLoader(
         dataset,
-        batch_size=64,
+        batch_size=32,
         shuffle=False,
         drop_last=False,
         num_workers=4,
@@ -155,11 +155,11 @@ class Dataset_ASVspoof05_eval(Dataset):
             utt_id = self.list_IDs[index]
             X, fs = librosa.load(self.base_dir+'/'+utt_id+'.flac', sr=16000)
             if self.normalize:
-                peak = np.max(np.abs(x))
-                x = x / peak
-            x = pad(x, self.cut)
-            x_inp = torch.from_numpy(x).float() 
-            return x_inp,utt_id  
+                peak = np.max(np.abs(X))
+                X = X / peak
+            X = pad(X, self.cut)
+            X_inp = torch.from_numpy(X).float() 
+            return X_inp,utt_id  
 
 
 def run_asvspoof2021_baseline(
@@ -269,7 +269,7 @@ def run_asvspoof2021_baseline(
 
     model = Model(args, device)
     nb_params = sum([param.view(-1).size()[0] for param in model.parameters()])
-    #model = nn.DataParallel(model).to(device)
+    model = nn.DataParallel(model).to(device)
     print('nb_params:', nb_params)
 
     optimizer = torch.optim.Adam(
