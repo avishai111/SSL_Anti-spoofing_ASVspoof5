@@ -82,13 +82,20 @@ def produce_evaluation_file(dataset, model, device, save_path):
     )
 
     model.eval()
+    pbar = tqdm(data_loader, total=len(data_loader))
+
 
     with torch.no_grad(), open(save_path, 'w') as fh:
-        for batch_x, utt_id in tqdm(data_loader, total=len(data_loader)):
+        for batch_x, utt_id in pbar:
+            
+            
             batch_x = batch_x.to(device, non_blocking=True)
 
             batch_out = model(batch_x)
             batch_score = batch_out[:, 1].detach().cpu().numpy().ravel()
+
+            pbar.set_description(f"Processing: {utt_id[0]}")
+            pbar.set_postfix(score=float(batch_score[0]))
 
             for f, cm in zip(utt_id, batch_score):
                 fh.write(f"{f} {cm}\n")
