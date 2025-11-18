@@ -21,6 +21,7 @@ from torch.utils.data import Dataset
 from tqdm import tqdm
 import librosa
 from model import *
+import copy
 
 
 class WrappedModel(nn.Module):
@@ -189,7 +190,7 @@ class WrappedModel(nn.Module):
         output = self.out_layer(last_hidden)
         
         if return_feat:
-            return out, x_ssl_feat
+            return output, x_ssl_feat
 
         return output
 
@@ -244,7 +245,7 @@ def evaluate_accuracy(dev_loader, model, device):
     return val_loss
 
 
-def produce_evaluation_file(dataset, model, device, save_path):
+def produce_evaluation_file(dataset, model, device, save_path, normalize):
     # אפשר לשנות את batch_size ו-num_workers לפי הזיכרון שלך
     data_loader = DataLoader(
         dataset,
@@ -278,7 +279,10 @@ def produce_evaluation_file(dataset, model, device, save_path):
                 ssl_feats[f] = x_np[i] 
 
     print(f"Scores saved to {save_path}")
-    np.savez("all_ssl_features.npz", **ssl_feats)
+    if normalize == True:
+        np.savez("all_ssl_features_normalize.npz", **ssl_feats)
+    else:
+        np.savez("all_ssl_features_no_normalize.npz", **ssl_feats)
     print("Saved embeddings to all_ssl_features.npz")
 
 
@@ -457,7 +461,8 @@ def run_asvspoof2021_baseline(
 
     if args.model_path:
         model.load_state_dict(torch.load(args.model_path, map_location=device))
-        model = WrappedModel(model)
+        model = WrappedModel(model,device)
+        model = model.to(device)
         print('Model loaded : {}'.format(args.model_path))
 
     if args.eval:
@@ -477,7 +482,7 @@ def run_asvspoof2021_baseline(
             list_IDs=file_eval,
             base_dir=os.path.join(args.database_path + folder_files),
             normalize = normalize)
-        produce_evaluation_file(eval_set, model, device, args.eval_output)
+        produce_evaluation_file(eval_set, model, device, args.eval_output, normalize)
         return
 
     train_proto_path = os.path.join(
