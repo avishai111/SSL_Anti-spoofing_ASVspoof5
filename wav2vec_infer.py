@@ -4,8 +4,7 @@ from tqdm import tqdm
 
 import torch
 import torchaudio
-from transformers import Wav2Vec2Processor, Wav2Vec2Model
-
+from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
 
 def load_metadata(meta_path):
     """
@@ -48,7 +47,8 @@ def load_audio(path, target_sr=16000):
     if sr != target_sr:
         resampler = torchaudio.transforms.Resample(orig_freq=sr, new_freq=target_sr)
         wav = resampler(wav)
-    return wav.squeeze(0), target_sr  # [time]
+    wav = wav.squeeze(0).cpu().numpy().astype("float32")
+    return wav, target_sr  # [time]
 
 
 def save_chunk(chunk_idx, feats, speakers, utt_ids, genders, attacks, labels, out_dir):
@@ -86,8 +86,8 @@ def main():
 
     MODEL_NAME = "facebook/wav2vec2-xls-r-300m"
     AUDIO_EXT = ".flac"          # אם זה wav, תשנה ל-".wav"
-    BATCH_SIZE = 32              # כמה utterances בריצה אחת של המודל
-    CHUNK_SIZE = 20000           # כל כמה utterances נשמר קובץ npz
+    BATCH_SIZE = 10              # כמה utterances בריצה אחת של המודל
+    CHUNK_SIZE = 100000          # כל כמה utterances נשמר קובץ npz
     DEVICE_NAME = "cuda"         # או "cpu"
     ###################################################################
 
@@ -95,11 +95,16 @@ def main():
     print(f"Using device: {device}")
 
     print("Loading model and processor...")
-    processor = Wav2Vec2Processor.from_pretrained(MODEL_NAME)
-    model = Wav2Vec2Model.from_pretrained(MODEL_NAME)
+    feature_extractor = Wav2Vec2FeatureExtractor.from_pretrained(
+        MODEL_NAME
+    )
+    model = Wav2Vec2Model.from_pretrained(
+        MODEL_NAME
+    )
     model.to(device)
     model.eval()
 
+    
     entries = load_metadata(META_FILE)
     print(f"Loaded {len(entries)} metadata lines")
 
@@ -129,25 +134,21 @@ def main():
         batch_meta.append(entry)
 
         if len(raw_batch) == BATCH_SIZE:
-            # המרה לטנסור והרצת המודל
-            inputs = processor(
+            inputs = feature_extractor(
                 raw_batch,
                 sampling_rate=16000,
                 return_tensors="pt",
                 padding=True,
             )
-            input_values = inputs.input_values.to(device)
-            attention_mask = inputs.attention_mask.to(device)
+            input_values = inputs["input_values"].to(device)
+            attention_mask = inputs["attention_mask"].to(device)
 
             with torch.no_grad():
                 outputs = model(input_values=input_values,
                                 attention_mask=attention_mask)
-                # [B, T, H]
-                hidden = outputs.last_hidden_state
-                # ממוצע על הציר הטמפורלי → [B, H]
-                emb = hidden.mean(dim=1).cpu().numpy()
+                hidden = outputs.last_hidden_state    # [B, T, H]
+                emb = hidden.mean(dim=1).cpu().numpy()  # [B, H]
 
-            # הוספה לצ'אנק
             for e, vec in zip(batch_meta, emb):
                 feats_chunk.append(vec)
                 speakers_chunk.append(e["speaker"])
@@ -180,16 +181,15 @@ def main():
             raw_batch = []
             batch_meta = []
 
-    # אם נשאר באצ' חלקי בסוף
     if len(raw_batch) > 0:
-        inputs = processor(
+        inputs = feature_extractor(
             raw_batch,
             sampling_rate=16000,
             return_tensors="pt",
             padding=True,
         )
-        input_values = inputs.input_values.to(device)
-        attention_mask = inputs.attention_mask.to(device)
+        input_values = inputs["input_values"].to(device)
+        attention_mask = inputs["attention_mask"].to(device)
 
         with torch.no_grad():
             outputs = model(input_values=input_values,
@@ -206,7 +206,6 @@ def main():
             labels_chunk.append(e["label"])
             in_chunk_counter += 1
 
-    # שמירת הצ'אנק האחרון
     if in_chunk_counter > 0:
         save_chunk(
             chunk_idx,
