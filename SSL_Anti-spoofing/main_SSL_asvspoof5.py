@@ -257,12 +257,14 @@ def produce_evaluation_file(dataset, model, device, save_path, normalize):
 
     model.eval()
     pbar = tqdm(data_loader, total=len(data_loader))
+
     ssl_feats = {}
+    chunk_size = 5000        # number of utterances per .npz (tune this)
+    num_in_chunk = 0
+    chunk_idx = 0
 
     with torch.no_grad(), open(save_path, 'w') as fh:
         for batch_x, utt_id in pbar:
-            
-            
             batch_x = batch_x.to(device, non_blocking=True)
 
             batch_out, x_ssl_feat = model(batch_x)
@@ -274,16 +276,35 @@ def produce_evaluation_file(dataset, model, device, save_path, normalize):
             for f, cm in zip(utt_id, batch_score):
                 fh.write(f"{f} {cm}\n")
 
-            x_np = x_ssl_feat.detach().cpu().numpy() 
+            x_np = x_ssl_feat.detach().cpu().numpy()
+
             for i, f in enumerate(utt_id):
-                ssl_feats[f] = x_np[i] 
+                ssl_feats[f] = x_np[i]
+                num_in_chunk += 1
+
+                # when chunk is full, flush to disk and reset
+                if num_in_chunk >= chunk_size:
+                    if normalize:
+                        fname = f"all_ssl_features_normalize_part{chunk_idx}.npz"
+                    else:
+                        fname = f"all_ssl_features_no_normalize_part{chunk_idx}.npz"
+                    np.savez(fname, **ssl_feats)
+                    ssl_feats = {}
+                    num_in_chunk = 0
+                    chunk_idx += 1
+
+    # flush any remaining features
+    if ssl_feats:
+        if normalize:
+            fname = f"all_ssl_features_normalize_part{chunk_idx}.npz"
+        else:
+            fname = f"all_ssl_features_no_normalize_part{chunk_idx}.npz"
+        np.savez(fname, **ssl_feats)
 
     print(f"Scores saved to {save_path}")
-    if normalize == True:
-        np.savez("all_ssl_features_normalize.npz", **ssl_feats)
-    else:
-        np.savez("all_ssl_features_no_normalize.npz", **ssl_feats)
-    print("Saved embeddings to all_ssl_features.npz")
+    print(f"Saved {chunk_idx + (1 if num_in_chunk > 0 else 0)} feature files in chunks")
+
+
 
 
 def train_epoch(train_loader, model, lr,optim, device):
@@ -381,7 +402,7 @@ def run_asvspoof2021_baseline(
     SNRmin=10,
     SNRmax=40,
 ):
-    normalize = False
+    normalize = True
 
     if normalize == True:
         eval_output = '/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/train_asvspoof5_normalize.txt'

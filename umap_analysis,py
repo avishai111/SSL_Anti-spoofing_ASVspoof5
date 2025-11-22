@@ -1,0 +1,171 @@
+import os
+import glob
+import numpy as np
+import matplotlib.pyplot as plt
+import umap.umap_ as umap
+from tqdm import tqdm
+
+# Paths
+NO_NORM_DIR = "/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/models/all_ssl_features_no_normalize/"
+NORM_DIR = "/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/models/all_ssl_features_no_normalize/all_ssl_features_normalize/"
+
+BASE_DIR = "/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/models/"
+
+
+NO_NORM_PATTERN = os.path.join(NO_NORM_DIR, "all_ssl_features_no_normalize_part*.npz")
+NORM_PATTERN = os.path.join(NORM_DIR, "all_ssl_features_normalize_part*.npz")
+
+def load_all_features(pattern, feature_key=None,save_path = None):
+   
+    files = sorted(glob.glob(pattern))
+    if not files:
+        raise RuntimeError(f"No npz files found with pattern: {pattern}")
+
+    all_feats = []
+    detected_key = feature_key
+
+    for i, path in enumerate(tqdm(files, desc="Loading NPZ parts")):
+        print(f"Loading {path}")
+        data = np.load(path)
+
+        parts = []
+        for key in data.files:
+            arr = data[key]
+
+            parts.append(arr)
+
+        file_feats = np.stack(parts, axis=0)
+
+        file_feats_mean = file_feats.mean(axis=1)
+
+        all_feats.append(file_feats_mean)
+
+    X = np.concatenate(all_feats, axis=0)
+
+    if save_path is not None:
+        np.savez(save_path, X=X)
+        print(f"Saved combined feature matrix to: {save_path}")
+
+
+    print(f"Total features shape from {pattern}: {X.shape}")
+    return X
+
+
+def run_umap_fit_transform(X_train, X_other=None, max_points_for_plot=20000):
+    
+    n_train = X_train.shape[0]
+    idx_train = None
+    X_fit = X_train
+
+    reducer = umap.UMAP(
+        n_neighbors=15,
+        n_components=2,
+        min_dist=0.1,
+        metric="euclidean",
+        random_state=42,
+        verbose=True,
+    )
+
+    print("Fitting UMAP...")
+    reducer.fit(X_fit)
+
+    print("Transforming training set...")
+    X_train_umap = reducer.transform(X_train)
+
+    X_other_umap = None
+    if X_other is not None:
+        print("Transforming other set...")
+        X_other_umap = reducer.transform(X_other)
+
+    # Optional indices for plotting
+    def subsample_for_plot(X_umap):
+        n = X_umap.shape[0]
+        if n > max_points_for_plot:
+            print(f"Subsampling for plot from {n} to {max_points_for_plot}")
+            idx = np.random.choice(n, size=max_points_for_plot, replace=False)
+            return X_umap[idx]
+        return X_umap
+
+    return X_train_umap, X_other_umap, subsample_for_plot
+
+
+def plot_two_domains(X_a_umap, X_b_umap, title, save_path=None, label_a="A", label_b="B"):
+    plt.figure(figsize=(8, 8))
+    plt.scatter(X_a_umap[:, 0], X_a_umap[:, 1], s=3, alpha=0.5, label=label_a)
+    plt.scatter(X_b_umap[:, 0], X_b_umap[:, 1], s=3, alpha=0.5, label=label_b)
+    plt.xlabel("UMAP-1")
+    plt.ylabel("UMAP-2")
+    plt.title(title)
+    plt.grid(True)
+    plt.legend()
+
+    if save_path is not None:
+        plt.savefig(save_path, dpi=300, bbox_inches="tight")
+        print(f"Saved figure to {save_path}")
+    else:
+        plt.show()
+
+
+if __name__ == "__main__":
+    # Load both sets (use same key for both)
+    #  X_no_norm = load_all_features(NO_NORM_PATTERN, feature_key=None,  save_path = os.path.join(NO_NORM_DIR, "combined__mean_no_norm.npz"))
+    # X_norm = load_all_features(NORM_PATTERN, feature_key=None, save_path = os.path.join(NORM_DIR, "combined__mean_norm.npz"))
+
+    # Load the npz file
+    data_no_norm = np.load(os.path.join(NO_NORM_DIR, "combined__mean_no_norm.npz"))
+    data_norm    = np.load(os.path.join(NORM_DIR, "combined__mean_norm.npz"))
+
+    # Extract the array
+    X_no_norm = data_no_norm["X"]
+    X_norm    = data_norm["X"]
+
+    print("X_no_norm shape:", X_no_norm.shape)
+    print("X_norm shape:", X_norm.shape)
+
+    # 1) Train UMAP on no_normalize, transform both
+    print("\n=== UMAP: train on no_normalize, transform both ===")
+    no_train_umap, no_on_norm_umap, subsampler = run_umap_fit_transform(
+        X_train=X_no_norm,
+        X_other=X_norm,
+    )
+
+    no_train_umap_plot = no_train_umap
+    no_on_norm_umap_plot = no_on_norm_umap
+
+    np.savez(os.path.join(BASE_DIR,"umap_no_norm_fit.npz"),
+             no_norm_train=no_train_umap,
+             norm_transformed=no_on_norm_umap)
+    print("Saved umap_no_norm_fit.npz")
+
+    plot_two_domains(
+        no_train_umap_plot,
+        no_on_norm_umap_plot,
+        title="UMAP fit on no_normalize: no_normalize vs normalize",
+        save_path="umap_fit_no_norm.png",
+        label_a="no_normalize",
+        label_b="normalize (mapped)",
+    )
+
+    # 2) Train UMAP on normalize, transform both
+    print("\n=== UMAP: train on normalize, transform both ===")
+    norm_train_umap, norm_on_no_umap, subsampler2 = run_umap_fit_transform(
+        X_train=X_norm,
+        X_other=X_no_norm,
+    )
+
+    norm_train_umap_plot = norm_train_umap
+    norm_on_no_umap_plot = norm_on_no_umap
+
+    np.savez(os.path.join(BASE_DIR,"umap_norm_fit.npz"),
+             norm_train=norm_train_umap,
+             no_norm_transformed=norm_on_no_umap)
+    print("Saved umap_norm_fit.npz")
+
+    plot_two_domains(
+        norm_train_umap_plot,
+        norm_on_no_umap_plot,
+        title="UMAP fit on normalize: normalize vs no_normalize",
+        save_path="umap_fit_norm.png",
+        label_a="normalize",
+        label_b="no_normalize (mapped)",
+    )
