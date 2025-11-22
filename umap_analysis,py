@@ -141,7 +141,7 @@ if __name__ == "__main__":
         no_train_umap_plot,
         no_on_norm_umap_plot,
         title="UMAP fit on no_normalize: no_normalize vs normalize",
-        save_path="umap_fit_no_norm.png",
+        save_path=os.path.join(BASE_DIR,"umap_fit_no_norm.png"),
         label_a="no_normalize",
         label_b="normalize (mapped)",
     )
@@ -165,7 +165,7 @@ if __name__ == "__main__":
         norm_train_umap_plot,
         norm_on_no_umap_plot,
         title="UMAP fit on normalize: normalize vs no_normalize",
-        save_path="umap_fit_norm.png",
+        save_path=os.path.join(BASE_DIR,"umap_fit_norm.png"),
         label_a="normalize",
         label_b="no_normalize (mapped)",
     )
