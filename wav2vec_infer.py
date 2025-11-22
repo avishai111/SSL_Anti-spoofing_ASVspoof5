@@ -5,6 +5,9 @@ from tqdm import tqdm
 import torch
 import torchaudio
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
+import warnings
+warnings.filterwarnings("ignore", message=".*torchaudio.load.*")
+
 
 def load_metadata(meta_path):
     """
