@@ -7,6 +7,21 @@ import torchaudio
 from transformers import Wav2Vec2FeatureExtractor, Wav2Vec2Model
 import warnings
 warnings.filterwarnings("ignore", message=".*torchaudio.load.*")
+import numpy as np
+
+def normalize_peak(wav: np.ndarray, eps: float = 1e-9) -> np.ndarray:
+    """
+    Peak normalization: מחלקים במקסימום המוחלט כך שהאמפליטודה תהיה בטווח [-1, 1].
+    """
+    # לוודא float32
+    wav = wav.astype(np.float32)
+
+    peak = np.max(np.abs(wav))
+
+    return wav / peak
+
+
+
 
 
 def load_metadata(meta_path):
@@ -160,11 +175,14 @@ def save_chunk(chunk_idx, feats, speakers, utt_ids, genders, attacks, labels, ou
 
 
 class AsvspoofAudioDataset(Dataset):
-    def __init__(self, entries, audio_root, audio_ext=".flac", target_sr=16000):
+    def __init__(self, entries, audio_root, audio_ext=".flac", target_sr=16000,normalize = True):
         self.entries = entries
         self.audio_root = audio_root
         self.audio_ext = audio_ext
         self.target_sr = target_sr
+        self.normalize = normalize
+        
+        print("normalize: ",self.normalize)
 
     def __len__(self):
         return len(self.entries)
@@ -179,6 +197,8 @@ class AsvspoofAudioDataset(Dataset):
             raise FileNotFoundError(f"Audio file not found: {audio_path}")
 
         wav, _ = load_audio(audio_path, target_sr=self.target_sr)
+        if self.normalize:
+          wav = normalize_peak(wav)
         return wav, entry
 
 
@@ -200,8 +220,8 @@ def main():
     ###################################################################
     META_FILE = "/gpfs0/bgu-benshimo/users/wavishay/projects/ASVspoof5/cm_protocols/ASVspoof5.train.metadata.txt"
     AUDIO_ROOT = "/gpfs0/bgu-benshimo/projects/ASVspoof5/flac_T/"
-    OUTPUT_DIR = "/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/xlsr_feats/no_normalize/"
-
+    OUTPUT_DIR = "/gpfs0/bgu-benshimo/users/wavishay/cm_analysis/xlsr_feats/normalize/"
+    normalize = True
     MODEL_NAME = "facebook/wav2vec2-xls-r-300m"
     AUDIO_EXT = ".flac"
     BATCH_SIZE = 10
@@ -228,6 +248,7 @@ def main():
         audio_root=AUDIO_ROOT,
         audio_ext=AUDIO_EXT,
         target_sr=TARGET_SR,
+        normalize = normalize,
     )
 
     data_loader = DataLoader(

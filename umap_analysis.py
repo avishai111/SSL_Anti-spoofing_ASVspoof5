@@ -36,7 +36,7 @@ def load_all_features(pattern, feature_key=None,save_path = None):
 
         file_feats = np.stack(parts, axis=0)
 
-        file_feats_mean = file_feats.mean(axis=1)
+       # file_feats_mean = file_feats.mean(axis=1)
 
         all_feats.append(file_feats_mean)
 
@@ -111,9 +111,14 @@ if __name__ == "__main__":
     #  X_no_norm = load_all_features(NO_NORM_PATTERN, feature_key=None,  save_path = os.path.join(NO_NORM_DIR, "combined__mean_no_norm.npz"))
     # X_norm = load_all_features(NORM_PATTERN, feature_key=None, save_path = os.path.join(NORM_DIR, "combined__mean_norm.npz"))
 
+    wav2vec_infer = False
     # Load the npz file
-    data_no_norm = np.load(os.path.join(NO_NORM_DIR, "combined__mean_no_norm.npz"))
-    data_norm    = np.load(os.path.join(NORM_DIR, "combined__mean_norm.npz"))
+    if wav2vec_infer == False:
+        data_no_norm = np.load(os.path.join(NO_NORM_DIR, "combined__mean_no_norm.npz"))
+        data_norm    = np.load(os.path.join(NORM_DIR, "combined__mean_norm.npz"))
+    else:
+        data_no_norm = np.load(os.path.join(NO_NORM_DIR, "combined__mean_no_norm_wav2vec.npz"))
+        data_norm    = np.load(os.path.join(NORM_DIR, "combined__mean_norm_wav2vec.npz"))
 
     # Extract the array
     X_no_norm = data_no_norm["X"]
@@ -131,20 +136,34 @@ if __name__ == "__main__":
 
     no_train_umap_plot = no_train_umap
     no_on_norm_umap_plot = no_on_norm_umap
+    if wav2vec_infer == False:
+        np.savez(os.path.join(BASE_DIR,"umap_no_norm_fit.npz"),
+                no_norm_train=no_train_umap,
+                norm_transformed=no_on_norm_umap)
+        print("Saved umap_no_norm_fit.npz")
+        plot_two_domains(
+            no_train_umap_plot,
+            no_on_norm_umap_plot,
+            title="UMAP fit on no_normalize: no_normalize vs normalize",
+            save_path=os.path.join(BASE_DIR,"umap_fit_no_norm.png"),
+            label_a="no_normalize",
+            label_b="normalize (mapped)",
+        )
+    else:
+        np.savez(os.path.join(BASE_DIR,"umap_no_norm_fit_wav2vec.npz"),
+                no_norm_train=no_train_umap,
+                norm_transformed=no_on_norm_umap)       
+        print("Saved umap_no_norm_fit_wav2vec.npz")
+        plot_two_domains(
+            no_train_umap_plot,
+            no_on_norm_umap_plot,
+            title="UMAP fit on no_normalize: no_normalize vs normalize - XLSR-Wav2Vec2",
+            save_path=os.path.join(BASE_DIR,"umap_no_norm_fit_wav2vec.png"),
+            label_a="no_normalize",
+            label_b="normalize (mapped)",
+        )
 
-    np.savez(os.path.join(BASE_DIR,"umap_no_norm_fit.npz"),
-             no_norm_train=no_train_umap,
-             norm_transformed=no_on_norm_umap)
-    print("Saved umap_no_norm_fit.npz")
-
-    plot_two_domains(
-        no_train_umap_plot,
-        no_on_norm_umap_plot,
-        title="UMAP fit on no_normalize: no_normalize vs normalize",
-        save_path=os.path.join(BASE_DIR,"umap_fit_no_norm.png"),
-        label_a="no_normalize",
-        label_b="normalize (mapped)",
-    )
+   
 
     # 2) Train UMAP on normalize, transform both
     print("\n=== UMAP: train on normalize, transform both ===")
@@ -156,16 +175,29 @@ if __name__ == "__main__":
     norm_train_umap_plot = norm_train_umap
     norm_on_no_umap_plot = norm_on_no_umap
 
-    np.savez(os.path.join(BASE_DIR,"umap_norm_fit.npz"),
-             norm_train=norm_train_umap,
-             no_norm_transformed=norm_on_no_umap)
-    print("Saved umap_norm_fit.npz")
-
-    plot_two_domains(
-        norm_train_umap_plot,
-        norm_on_no_umap_plot,
-        title="UMAP fit on normalize: normalize vs no_normalize",
-        save_path=os.path.join(BASE_DIR,"umap_fit_norm.png"),
-        label_a="normalize",
-        label_b="no_normalize (mapped)",
-    )
+    if wav2vec_infer == False:
+        np.savez(os.path.join(BASE_DIR,"umap_norm_fit.npz"),
+                norm_train=norm_train_umap,
+                no_norm_transformed=norm_on_no_umap)
+        print("Saved umap_norm_fit.npz")
+        plot_two_domains(
+            norm_train_umap_plot,
+            norm_on_no_umap_plot,
+            title="UMAP fit on normalize: normalize vs no_normalize",
+            save_path=os.path.join(BASE_DIR,"umap_fit_norm.png"),
+            label_a="normalize",
+            label_b="no_normalize (mapped)",
+        )
+    else:
+        np.savez(os.path.join(BASE_DIR,"umap_norm_fit_wav2vec.npz"),
+                norm_train=norm_train_umap,
+                no_norm_transformed=norm_on_no_umap)
+        print("Saved umap_norm_fit_wav2vec.npz")
+        plot_two_domains(
+            norm_train_umap_plot,
+            norm_on_no_umap_plot,
+            title="UMAP fit on normalize: normalize vs no_normalize - XLSR-Wav2Vec2",
+            save_path=os.path.join(BASE_DIR,"umap_fit_norm_wav2vec.png"),
+            label_a="normalize",
+            label_b="no_normalize (mapped)",
+        )
